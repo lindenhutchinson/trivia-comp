@@ -1,0 +1,211 @@
+{% extends "base.html" %}
+
+{% block title %}TriviaComp | Setup Competition{% endblock %}
+
+{% block content %}
+<style>
+#questions-table {
+    width:100%;
+}
+#questions-table td {
+    width:auto;
+}
+.btn-wide {
+    width:100%
+}
+#questions-collapse {
+    max-height: 50vh;
+    overflow-y: auto;
+}
+</style>
+<div class="text-center mt-3">
+    <h2>Competition Setup</h2>
+    <h3>{{competition.name}}</h3>
+</div>
+<form id="trivia-question-form" method="post">
+    {% csrf_token %}
+    <div class="row mb-3">
+        <div class="col-4">
+            <div>
+                {{ trivia_form.category.label_tag }}
+                {{ trivia_form.category }}
+            </div>
+        </div>
+        <div class="col-4">
+
+            <div>
+                {{ trivia_form.question_type.label_tag }}
+                {{ trivia_form.question_type }}
+            </div>
+        </div>
+        <div class="col-4">
+            <div>
+                {{ trivia_form.difficulty.label_tag }}
+                {{ trivia_form.difficulty }}
+            </div>
+        </div>
+    </div>
+    <div class="row mb-3">
+        <div class="col d-flex">
+            {{ trivia_form.num_questions.label_tag }}
+            {{ trivia_form.num_questions }}
+        </div>
+        <div class="col-1 d-flex align-items-center justify-content-center">
+            <div id="loading-spinner" class="spinner-border" role="status" style="display:none">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+        <div class="col d-flex">
+            <button id="fetch-btn" type="submit" class="btn btn-primary btn-wide">Fetch Questions</button>
+        </div>
+
+    </div>
+
+
+</form>
+
+<div id="accordion">
+    <div class="accordion-item">
+        <h2 class="accordion-header" id="questions-heading">
+            <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#questions-collapse" aria-expanded="true" aria-controls="questions-collapse">
+                Questions - (&nbsp;<span id="num-questions">{{questions | length}}</span>&nbsp;)
+            </button>
+        </h2>
+
+        <div id="questions-collapse" class="accordion-collapse collapse show" aria-labelledby="questions-heading">
+            <div class="accordion-body">
+                <table id="questions-table" class="table table-bordered">
+                    <thead>
+                        <tr>
+                            <th>Question</th>
+                            <th>Category</th>
+                            <th>Type</th>
+                            <th>Difficulty</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for question in questions %}
+                            <tr>
+                                <td>{{ question.question|truncatechars:100 }}</td>
+                                <td>{{ question.category_name }}</td>
+                                <td>{{ question.question_type }}</td>
+                                <td>{{ question.difficulty }}</td>
+                                <td class="d-flex">
+                                    <button class="btn btn-danger delete-button" data-question-id="{{ question.id }}">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                    <!-- Placeholder button with random icon -->
+                                    <button class="btn btn-primary refresh-button" data-question-id="{{ question.id }}">
+                                        <i class="bi bi-shuffle"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<script>
+    function generateTableRow(question, deleteLabel, randomLabel) {
+        var row = `
+        <tr>
+            <td>${question.question.substring(0, 100) + (question.question.length > 100 ? '...' : '')}</td>
+            <td>${question.category_name}</td>
+            <td>${question.question_type}</td>
+            <td>${question.difficulty}</td>
+            <td class="d-flex">
+                <button class="btn btn-danger delete-button" data-question-id="${question.id}">
+                    <i class="bi bi-trash"></i>
+                </button>
+                <button class="btn btn-primary refresh-button" data-question-id="${question.id}">
+                    <i class="bi bi-shuffle"></i>
+                </button>
+            </td>
+        </tr>
+    `;
+        return row;
+    }
+    function updateQuestionCount() {
+        var questionCount = $("#questions-table tbody tr").length;
+        console.log('updating questions', questionCount)
+        $("#num-questions").text(questionCount);
+    }
+
+    function onRowDelete() {
+        $("#loading-spinner").css('display','')
+            $(this).prop('disabled', true);
+            var questionId = $(this).data('question-id');
+            var $row = $(this).closest('tr');
+            $.ajax({
+                type: 'POST',
+                url: "{% url 'delete_question' competition.code %}",
+                data: {
+                    question_id: questionId,
+                    csrfmiddlewaretoken: '{{ csrf_token }}'
+                },
+                success: function (data) {
+
+                    // Remove the deleted question from the table
+                    $row.parent().find('tr').filter($row).remove();
+                    $("#loading-spinner").css('display','none');
+                    updateQuestionCount();
+
+
+                },
+                error: function (xhr, status, error) {
+                    console.error(status, error)
+                    // Handle error response, display an error message, etc.
+                }
+            });
+    }
+    
+    $(document).ready(function () {
+        // Attach event handlers for the delete buttons
+        $('.delete-button').click(onRowDelete);
+
+
+        $('.refresh-button').click(function () {
+            var questionId = $(this).data('question-id');
+            // TODO - implement the random question ajax action
+        });
+
+
+        $('#trivia-question-form').on('submit', function (e) {
+            e.preventDefault();
+            $("#loading-spinner").css('display','')
+            $('#fetch-btn').prop('disabled',true);
+            $.ajax({
+                type: 'POST',
+                url: "{% url 'comp_setup' competition.code %}",
+                data: $('#trivia-question-form').serialize(),
+                success: function (data) {
+                    $("#loading-spinner").css('display','none');
+                    $('#fetch-btn').prop('disabled',false);
+
+                    // Loop through the returned JSON data and append to the table
+                    $.each(data.questions, function (index, question) {
+                        var row = generateTableRow(question, "Delete", "Random");
+                        $('#questions-table tbody').append(row);
+                    });
+
+                    // must be redefined whenever new .delete-buttons are created
+                    // there's probably a better way to do it, sue me.
+                    $('.delete-button').unbind('click', onRowDelete)
+                    $('.delete-button').click(onRowDelete);
+                   
+                    updateQuestionCount();
+
+                },
+            });
+        });
+    });
+    updateQuestionCount();
+</script>
+
+
+{% endblock %}
