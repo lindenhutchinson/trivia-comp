@@ -1,7 +1,7 @@
 # forms.py
 from django import forms
 
-from .models import User, Competition, TriviaCategory, Trivia
+from .models import CompetitionTrivia, User, Competition, TriviaCategory, Trivia
 
 
 class UserForm(forms.ModelForm):

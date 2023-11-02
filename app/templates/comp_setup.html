@@ -10,12 +10,37 @@
 #questions-table td {
     width:auto;
 }
+#questions-table thead {
+
+        position: sticky;
+        top: 0;
+        background-color: #f8f9fa; /* Set the background color of the sticky header */
+        z-index: 1; /* Ensure the sticky header appears above the table body */
+
+}
 .btn-wide {
     width:100%
 }
 #questions-collapse {
     max-height: 50vh;
     overflow-y: auto;
+}
+.header-checkbox {
+    margin: 5px; /* Add some spacing between the checkbox and the label */
+}
+.question-cell{
+    width: 60% !important;
+}
+.action-cell {
+    width:5% !important;
+}
+.row-checkbox {
+    transform: scale(1.5); /* Increase the size of the checkbox */
+
+    display: inline-block;
+    vertical-align: middle;
+    line-height: normal;
+
 }
 </style>
 <div class="text-center mt-3">
@@ -58,48 +83,62 @@
         <div class="col d-flex">
             <button id="fetch-btn" type="submit" class="btn btn-primary btn-wide">Fetch Questions</button>
         </div>
-
     </div>
-
-
 </form>
 
-<div id="accordion">
+<div id="accordion" class="accordion">
     <div class="accordion-item">
         <h2 class="accordion-header" id="questions-heading">
-            <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#questions-collapse" aria-expanded="true" aria-controls="questions-collapse">
+            <button 
+            class="accordion-button" 
+            type="button" 
+            data-mdb-toggle="collapse" 
+            data-mdb-target="#questions-collapse" 
+            aria-expanded="true" 
+            aria-controls="questions-collapse"
+            >
                 Questions - (&nbsp;<span id="num-questions">{{questions | length}}</span>&nbsp;)
             </button>
         </h2>
 
-        <div id="questions-collapse" class="accordion-collapse collapse show" aria-labelledby="questions-heading">
-            <div class="accordion-body">
-                <table id="questions-table" class="table table-bordered">
+        <div id="questions-collapse" 
+            class="accordion-collapse collapse show" 
+            aria-labelledby="questions-heading"
+            data-mdb-parent="#accordion">
+            <div class="accordion-body p-0">
+                <table id="questions-table" class="table table-bordered mt-0 gt-0">
                     <thead>
                         <tr>
-                            <th>Question</th>
+                            <th class="action-cell">
+                                <div class="d-flex justify-content-center">
+                                    <button id="delete-button" class="btn btn-danger" disabled>
+                                        <i class="fa-solid fa-trash"></i>
+                                    </button>
+                                    <!-- Placeholder button with random icon -->
+                                    <button id="refresh-button" class="btn btn-primary" disabled>
+                                        <i class="fa-solid fa-shuffle"></i>
+                                    </button>
+                                </div>
+                                <div class="d-flex justify-content-center mt-2">
+                                    <input type="checkbox" id="select-all-checkbox" class="header-checkbox row-checkbox">
+                                </div>
+                            </th>
+                            <th class="question-cell">Question</th>
                             <th>Category</th>
                             <th>Type</th>
                             <th>Difficulty</th>
-                            <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for question in questions %}
                             <tr>
+                                <td class="text-center">
+                                    <input type="checkbox" class="row-checkbox" data-question-id="{{ question.id }}">
+                                </td>
                                 <td>{{ question.question|truncatechars:100 }}</td>
                                 <td>{{ question.category_name }}</td>
                                 <td>{{ question.question_type }}</td>
                                 <td>{{ question.difficulty }}</td>
-                                <td class="d-flex">
-                                    <button class="btn btn-danger delete-button" data-question-id="{{ question.id }}">
-                                        <i class="bi bi-trash"></i>
-                                    </button>
-                                    <!-- Placeholder button with random icon -->
-                                    <button class="btn btn-primary refresh-button" data-question-id="{{ question.id }}">
-                                        <i class="bi bi-shuffle"></i>
-                                    </button>
-                                </td>
                             </tr>
                         {% endfor %}
                     </tbody>
@@ -109,103 +148,130 @@
     </div>
 </div>
 
-
 <script>
-    function generateTableRow(question, deleteLabel, randomLabel) {
-        var row = `
+    function maybeEnableActionButtons() {
+        var isChecked = $("#questions-table tbody tr").has(".row-checkbox:checked").length > 0;
+        disableActionButtons(isChecked);
+    }
+    function disableActionButtons(enable) {
+        $('#delete-button').prop('disabled', !enable)
+        $('#refresh-button').prop('disabled', !enable)
+    }
+    $(".row-checkbox").change(function() { 
+        var isChecked = $("#questions-table tbody tr").has(".row-checkbox:checked").length > 0;
+        disableActionButtons(isChecked);
+    });
+    // Select all checkbox
+    $("#select-all-checkbox").change(function() {
+        var isChecked = $(this).prop("checked");
+        disableActionButtons(isChecked);
+
+        // Select or unselect all checkboxes in the table
+        $("#questions-table tbody tr").each(function() {
+            var checkbox = $(this).find(".row-checkbox");
+            checkbox.prop("checked", isChecked);
+            // Enable or disable checkboxes based on the select all checkbox state
+            checkbox.prop("disabled", isChecked);
+
+        });
+
+    });
+    function generateTableRow(question) {
+      var row = `
         <tr>
+            <td class="text-center">
+                <input type="checkbox" class="row-checkbox" data-question-id="${question.id}">
+            </td>
             <td>${question.question.substring(0, 100) + (question.question.length > 100 ? '...' : '')}</td>
             <td>${question.category_name}</td>
             <td>${question.question_type}</td>
             <td>${question.difficulty}</td>
-            <td class="d-flex">
-                <button class="btn btn-danger delete-button" data-question-id="${question.id}">
-                    <i class="bi bi-trash"></i>
-                </button>
-                <button class="btn btn-primary refresh-button" data-question-id="${question.id}">
-                    <i class="bi bi-shuffle"></i>
-                </button>
-            </td>
         </tr>
-    `;
-        return row;
+      `;
+      return row;
     }
+  
     function updateQuestionCount() {
         var questionCount = $("#questions-table tbody tr").length;
         console.log('updating questions', questionCount)
-        $("#num-questions").text(questionCount);
+      $("#num-questions").text(questionCount);
     }
+  
+    function applyActionsToCheckedRows() {
+      var checkedRows = $("#questions-table tbody tr").has(".row-checkbox:checked");
+      var questionIds = checkedRows.find(".row-checkbox:checked").map(function() {
+        return $(this).data("question-id");
+      }).get();
+      // Perform the relevant actions on the checked rows
+      if (questionIds.length > 0) {
+        console.log('question ids',questionIds)
 
-    function onRowDelete() {
-        $("#loading-spinner").css('display','')
-            $(this).prop('disabled', true);
-            var questionId = $(this).data('question-id');
-            var $row = $(this).closest('tr');
-            $.ajax({
-                type: 'POST',
-                url: "{% url 'delete_question' competition.code %}",
-                data: {
-                    question_id: questionId,
-                    csrfmiddlewaretoken: '{{ csrf_token }}'
-                },
-                success: function (data) {
-
-                    // Remove the deleted question from the table
-                    $row.parent().find('tr').filter($row).remove();
-                    $("#loading-spinner").css('display','none');
-                    updateQuestionCount();
-
-
-                },
-                error: function (xhr, status, error) {
-                    console.error(status, error)
-                    // Handle error response, display an error message, etc.
-                }
-            });
+        // Delete action
+        $("#loading-spinner").css("display", "");
+        $.ajax({
+          type: "POST",
+          url: "{% url 'delete_questions' competition.code %}",
+          data: {
+            question_ids: JSON.stringify(questionIds),
+            csrfmiddlewaretoken: "{{ csrf_token }}"
+          },
+          success: function(data) {
+            // Remove the deleted questions from the table
+            checkedRows.remove();
+            $("#loading-spinner").css("display", "none");
+            updateQuestionCount();
+            disableActionButtons(false);
+          },
+          error: function(xhr, status, error) {
+            console.error(status, error);
+            // Handle error response, display an error message, etc.
+          }
+        });
+      }
     }
-    
-    $(document).ready(function () {
-        // Attach event handlers for the delete buttons
-        $('.delete-button').click(onRowDelete);
+  
+    $(document).ready(function() {
+        $('.row-checkbox').each(function() {
+            $(this).prop('checked', false);
+        })
+      // Attach event handlers for the delete and refresh buttons
+      $("#delete-button").click(applyActionsToCheckedRows);
+  
+      $("#refresh-button").click(function() {
+        // TODO - implement the refresh action
+      });
+  
 
+  
+      $('#trivia-question-form').on('submit', function(e) {
+        e.preventDefault();
+        $("#loading-spinner").css('display', '')
+        $('#fetch-btn').prop('disabled', true);
+        $.ajax({
+          type: 'POST',
+          url: "{% url 'comp_setup' competition.code %}",
+          data: $('#trivia-question-form').serialize(),
+          success: function(data) {
+            $("#loading-spinner").css('display', 'none');
+            $('#fetch-btn').prop('disabled', false);
 
-        $('.refresh-button').click(function () {
-            var questionId = $(this).data('question-id');
-            // TODO - implement the random question ajax action
-        });
-
-
-        $('#trivia-question-form').on('submit', function (e) {
-            e.preventDefault();
-            $("#loading-spinner").css('display','')
-            $('#fetch-btn').prop('disabled',true);
-            $.ajax({
-                type: 'POST',
-                url: "{% url 'comp_setup' competition.code %}",
-                data: $('#trivia-question-form').serialize(),
-                success: function (data) {
-                    $("#loading-spinner").css('display','none');
-                    $('#fetch-btn').prop('disabled',false);
-
-                    // Loop through the returned JSON data and append to the table
-                    $.each(data.questions, function (index, question) {
-                        var row = generateTableRow(question, "Delete", "Random");
-                        $('#questions-table tbody').append(row);
-                    });
-
-                    // must be redefined whenever new .delete-buttons are created
-                    // there's probably a better way to do it, sue me.
-                    $('.delete-button').unbind('click', onRowDelete)
-                    $('.delete-button').click(onRowDelete);
-                   
-                    updateQuestionCount();
-
-                },
+            // Loop through the returned JSON data and append to the table
+            $.each(data.questions, function(index, question) {
+              var row = generateTableRow(question, "Delete", "Random");
+              $('#questions-table tbody').append(row);
             });
+            updateQuestionCount();
+            $(".row-checkbox").unbind('change')
+            $(".row-checkbox").change(maybeEnableActionButtons);
+          },
         });
+      });
     });
+  
     updateQuestionCount();
 </script>
+  
+  
 
 
 {% endblock %}

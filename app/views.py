@@ -9,6 +9,7 @@ from .utils import generate_random_string
 from django.contrib.auth import login, authenticate, logout
 from django.contrib import messages
 from django.db.models import F
+import json
 from .trivia_cache import TriviaCache
 @login_required
 def home(request):
@@ -127,14 +128,6 @@ def comp_setup(request, comp_code):
             difficulty = trivia_form.cleaned_data["difficulty"]
             cache = TriviaCache()
             questions = cache.get_trivia(num_questions, category, difficulty, question_type, comp)
-            # api = OpenTriviaAPI()
-            # question_data = api.fetch_questions(
-            #     num_questions,
-            #     category,
-            #     difficulty,
-            #     question_type,
-            # )
-            # questions = save_trivia_data_from_api(question_data, comp)
             return JsonResponse({"questions": questions})
 
         elif settings_form.is_valid():
@@ -159,18 +152,25 @@ def comp_setup(request, comp_code):
         },
     )
 
+from django.http import JsonResponse
+
 @login_required
 @require_POST
 def delete_question(request, comp_code):
     comp = get_object_or_404(Competition, code=comp_code, owner=request.user)
-    # Get the question ID to be deleted from the request
-    question_id = request.POST.get("question_id")
-    question = get_object_or_404(Trivia, id=question_id)
-    # Ensure that the question exists in the competition
+    # Get the question IDs to be deleted from the request
     try:
-        competition_trivia = CompetitionTrivia.objects.get(competition=comp, trivia=question)
-        competition_trivia.delete()
-    except CompetitionTrivia.DoesNotExist:
-        return JsonResponse({"error": "Question not found or not authorized to delete."}, status=400)
+        question_ids = json.loads(request.POST.get("question_ids"))
+    except ValueError:
+        print(f'invalid question_ids - {question_ids}')
+        return redirect("home")
     
-    return JsonResponse({"message": "Question deleted successfully"})
+    # Ensure that the questions exist in the competition
+    try:
+        competition_trivia = CompetitionTrivia.objects.filter(competition=comp, trivia__id__in=question_ids)
+        competition_trivia.delete()
+        print(f'deleted {len(question_ids)} competition trivia')
+    except CompetitionTrivia.DoesNotExist:
+        return JsonResponse({"error": "Questions not found or not authorized to delete."}, status=400)
+    
+    return JsonResponse({"message": "Questions deleted successfully"})

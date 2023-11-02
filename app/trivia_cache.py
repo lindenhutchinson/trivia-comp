@@ -25,10 +25,13 @@ class TriviaCache:
         existing_trivia = self.get_existing_trivia(
             competition, category, difficulty, question_type
         )
-        if existing_trivia.count() >= num_questions:
+        trivia_count = existing_trivia.count()
+        if trivia_count >= num_questions:
             # Use existing trivia from the database
             print(f"Pulled {num_questions} questions from cache")
-            trivia_data = random.choices(existing_trivia, k=num_questions)
+            print(f"Trivia count is: {trivia_count}")
+            trivia_idxs = random.choices(range(0, trivia_count), k=num_questions)
+            trivia_data = [existing_trivia[i] for i in trivia_idxs]
             trivia_list = self.save_cached_trivia_for_comp(trivia_data, competition)
         else:
             # this will always be > 0
@@ -91,9 +94,11 @@ class TriviaCache:
                 SeenCompetitionTrivia.objects.create(
                     competition=competition, trivia=trivia
                 )
-                trivia_list.append(
-                    {**model_to_dict(trivia), "category_name": trivia.category.name}
-                )
+
+                trivia_list.append({
+                    **model_to_dict(trivia),
+                    "category_name": trivia.category.name
+                })
 
         return trivia_list
 
